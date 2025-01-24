@@ -1,0 +1,227 @@
+---
+title: "textmining"
+output: html_document
+date: "2025-01-18"
+---
+
+```{r}
+warfarin_associated <- warfarin_dose[!grepl("not associated", warfarin_dose$Association, ignore.case = TRUE), ]
+warfarin_associated
+
+```
+
+```{r}
+warfarin_withdose <- warfarin_associated[!grepl("with dose", warfarin_associated$Association, ignore.case = TRUE), ]
+warfarin_withdose
+rownames(warfarin_withdose) <- NULL
+
+```
+
+
+
+
+```{r}
+# Import the file with corrected row.names argument
+data <- read.table("warfarin.txt", header = TRUE, sep = "|", stringsAsFactors = FALSE, strip.white = TRUE, row.names = NULL)
+
+# View the data
+print(data)
+rownames(data) <- NULL
+
+```
+
+```{r}
+data_filtered <- data %>% select(-c("X", "X.1","Index"))
+data_filtered
+rownames(data_filtered) <- NULL
+
+```
+
+
+```{r}
+data_combine <- data_filtered %>%
+  mutate(ID = warfarin_withdose$PharmGKB.ID, Variants = warfarin_withdose$Variant)
+
+# View the result
+data_combine
+rownames(data_combine) <- NULL
+
+```
+
+```{r}
+data_combine <- data_combine %>% select(ID, Variants, everything())
+data_combine
+```
+
+```{r}
+table(data_combine$Label, useNA = "ifany")
+table(data_combine$Variants, useNA = "ifany")
+```
+
+```{r}
+
+
+# Assuming your data frame is called data_combine
+library(dplyr)
+library(tidyr)
+
+
+# Update the Associated.Genotype.Allele column based on the condition
+data_combine_2 <- data_combine %>%
+  mutate(Associated.Genotype.Allele = ifelse(startsWith(Variants, "rs"), data_combine$Variants, Associated.Genotype.Allele))
+
+# Preview the updated data
+head(data_combine_2)
+
+
+
+
+```
+
+```{r}
+
+# Load dplyr package
+library(dplyr)
+
+# Drop rows based on the condition
+data_combine_2 <- data_combine_2 %>%
+  filter(!Associated.Genotype.Allele %in% c("Allele C", "Allele T", "CYP2C9 normal metabolizer", "Genotype CT"))
+
+# Preview the updated data
+head(data_combine_2)
+```
+
+```{r}
+data_combine_2$Associated.Genotype.Allele <- gsub("CYP2C9", "", data_combine_2$Associated.Genotype.Allele)
+
+table(data_combine_2$Associated.Genotype.Allele)
+```
+
+
+```{r}
+# Load tidyr for row duplication
+library(tidyr)
+
+# Separate rows based on the '+' separator
+data_combine_3 <- data_combine_2 %>%
+  separate_rows(Associated.Genotype.Allele, sep = "\\+")
+
+# Trim whitespace around the split values
+data_combine_3$Associated.Genotype.Allele <- trimws(data_combine_3$Associated.Genotype.Allele)
+
+# Preview the updated data
+data_combine_3
+
+
+```
+```{r}
+table(data_combine_3$Associated.Genotype.Allele, useNA = 'ifany')
+```
+
+```{r}
+table(data_combine_3$Label, useNA = 'ifany')
+```
+
+
+
+```{r}
+data_combine_4 <- na.omit(data_combine_3)
+
+# Check the updated table
+table(data_combine_4$Label, useNA = 'ifany')
+dim(data_combine_4)
+
+```
+
+
+```{r}
+head(data_combine_4$Associated.Genotype.Allele)
+
+```
+
+
+
+```{r}
+# Extract and list all unique alleles
+unique_alleles <- data_combine_4$Associated.Genotype.Allele %>%
+  strsplit(split = "/") %>%  # Split by '/'
+  unlist() %>%              # Flatten the list into a vector
+  unique()                  # Get unique values
+
+# Print the unique alleles
+unique_alleles
+
+
+
+```
+
+```{r}
+# Extract all unique alleles
+unique_alleles <- data_combine_4$Associated.Genotype.Allele %>%
+  strsplit(split = "/") %>%
+  unlist() %>%
+  unique()
+
+# Create a DataFrame to store allele counts
+allele_counts <- data_combine_4$Associated.Genotype.Allele %>%
+  lapply(function(x) {
+    alleles <- strsplit(x, "/")[[1]]
+    table(factor(alleles, levels = unique_alleles))
+  }) %>%
+  do.call(rbind, .)
+
+# Convert to a data frame and add rownames
+allele_counts_df <- as.data.frame(allele_counts)
+#rownames(allele_counts_df) <- data_combine_4$ID
+
+# Preview the result
+head(allele_counts_df)
+
+
+```
+
+
+
+
+```{r}
+allele_counts_df <- allele_counts_df[, order(names(allele_counts_df))]
+allele_counts_df
+
+```
+
+```{r}
+# Custom order
+custom_order <- c("*1", "*2", "*3", "*4", "*5", "*6", "*8","*11", "*12", "*13", "*14", "*24", "*46", 
+                  "*58", "*59",  "rs10509680", "rs1057910", "rs1799853", "rs202201137",
+                  "rs28371685", "rs28371686", "rs2860905", "rs4917639", "rs4918758", "rs56165452", 
+                  "rs7089580", "rs7900194", "rs9332092", "rs9332096", "rs9332098", "rs9332131", 
+                  "rs9332238")
+
+# Reorder the columns based on custom_order
+allele_counts_df2 <- allele_counts_df[, custom_order]
+
+# Preview the reordered column names
+colnames(allele_counts_df2)
+
+```
+
+```{r}
+# Assuming df1 and df2 are your dataframes
+warfarin_preprocessed <- cbind(allele_counts_df2, Label = data_combine_4$Label)
+warfarin_preprocessed
+
+```
+
+
+
+```{r}
+write.table(warfarin_preprocessed, "warfarin_preprocesses_dataset.tsv", sep = "\t", row.names = FALSE, quote = FALSE)
+
+
+```
+
+
+
+
+
+
